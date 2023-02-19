@@ -1,0 +1,12 @@
+strvar1: "hello there my name is harris"
+strvar2: 'hello there my name is harris'
+intvar: -0x1234
+floatvar: 1.3e-6
+stack: zeros 10
+start
+
+ld	r1, intvar
+set	r2, 1
+add	r1, r2
+put	r1
+stop
