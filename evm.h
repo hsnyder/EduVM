@@ -115,8 +115,8 @@ const evm_op_t evm_ops[] = {
 	[OP_JN]      = {OP_JN,   "jn",   2, {EVM_REG, EVM_MEM}},
 	[OP_JNZ]     = {OP_JNZ,  "jnz",  2, {EVM_REG, EVM_MEM}},
 	[OP_J]       = {OP_J,    "j",    1, {EVM_MEM}},
-	[OP_CVTFI]   = {OP_CVTFI,"cvtfi",2, {EVM_REG, EVM_REG}},
-	[OP_CVTIF]   = {OP_CVTIF,"cvtif",2, {EVM_REG, EVM_REG}},
+	[OP_CVTFI]   = {OP_CVTFI,"cvtfi",1, {EVM_REG}},
+	[OP_CVTIF]   = {OP_CVTIF,"cvtif",1, {EVM_REG}},
 	[OP_PUT]     = {OP_PUT,  "put",  1, {EVM_REG}},
 	[OP_FPUT]    = {OP_FPUT, "fput", 1, {EVM_REG}},
 	[OP_LNOT]    = {OP_LNOT, "lnot", 1, {EVM_REG}},
@@ -341,13 +341,11 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
 			continue;
 		case OP_CVTFI:
 			CHKREG(arg1);
-			CHKREG(arg2);
-			r.r[arg1].i = r.r[arg2].f;
+			r.r[arg1].i = r.r[arg1].f;
 			break;
 		case OP_CVTIF:
 			CHKREG(arg1);
-			CHKREG(arg2);
-			r.r[arg1].f = r.r[arg2].i;
+			r.r[arg1].f = r.r[arg1].i;
 			break;
 		case OP_PUT:
 			CHKREG(arg1);
