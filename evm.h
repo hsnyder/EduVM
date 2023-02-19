@@ -67,8 +67,9 @@ typedef enum {
 	OP_CVTIF  = 0x1d,
 	OP_PUT    = 0x1e,
 	OP_FPUT   = 0x1f,
+	OP_LNOT   = 0x20,
 
-	OP_INVAL  = 0x20,
+	OP_INVAL  = 0x21,
 } evm_op;
 
 typedef enum {
@@ -118,6 +119,7 @@ const evm_op_t evm_ops[] = {
 	[OP_CVTIF]   = {OP_CVTIF,"cvtif",2, {EVM_REG, EVM_REG}},
 	[OP_PUT]     = {OP_PUT,  "put",  1, {EVM_REG}},
 	[OP_FPUT]    = {OP_FPUT, "fput", 1, {EVM_REG}},
+	[OP_LNOT]    = {OP_LNOT, "lnot", 1, {EVM_REG}},
 };
 
 
@@ -272,6 +274,10 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
 		case OP_NOT:
 			CHKREG(arg1);
 			r.r[arg1].u = ~ r.r[arg1].u;
+			break;
+		case OP_LNOT:
+			CHKREG(arg1);
+			r.r[arg1].i = ! r.r[arg1].i;
 			break;
 		case OP_AND:
 			CHKREG(arg1);

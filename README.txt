@@ -27,8 +27,6 @@ fput	R
 (fget	R
 (sget	M/L, R  
 
-cvtfi	R, R
-cvtif	R, R
 
 ld	R, M/L
 st	M/L, R
@@ -49,7 +47,11 @@ fsub	R, R
 fmul	R, R
 fdiv	R, R
 
+cvtfi	R, R
+cvtif	R, R
+
 not	R
+lnot	R
 and	R, R
 or	R, R
 xor	R, R
