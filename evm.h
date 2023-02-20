@@ -123,6 +123,8 @@ const evm_op_t evm_ops[] = {
 };
 
 
+const char * validate_evm_mem(int mem_bufsz, evm_mem *memory);
+
 #endif
 
 #ifdef EVM_IMPLEMENTATION
@@ -130,7 +132,7 @@ const evm_op_t evm_ops[] = {
 
 #include <stdio.h> //TODO remove
 
-static const char * validate_evm_mem(int mem_bufsz, evm_mem *memory) 
+const char * validate_evm_mem(int mem_bufsz, evm_mem *memory) 
 {
 	if (mem_bufsz < ssizeof(*memory)) 
 		return "invalid memory image: buffer too small";

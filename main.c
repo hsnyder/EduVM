@@ -650,6 +650,81 @@ const char *assemble(int bufsz, char *buf)
 
 const char *disassemble(int bufsz, int *buf)
 {
+	evm_mem *img = buf;	
+	const char *errmsg = validate_evm_mem(bufsz, img);
+	if (errmsg) return errmsg;
+
+	evm_word *mem = img->mem;
+
+	printf("--- DATA SECTION ---------------------------------\n");
+	for (int i = 0; i < img->len_data; i++)
+	{
+		// print the address
+		printf("%.8x:   ", i);
+
+		// print the contents of memory
+		printf("%.8x\n", mem[i].u);
+	}
+	printf("--- CODE SECTION ---------------------------------\n");
+	int i = img->len_data;
+	while (i < img->len_code+img->len_data)
+	{
+		int op = mem[i].i;
+		if (op < OP_STOP || op >= OP_INVAL) 
+			die(0, "Illegal instruction 0x%0.8x", op);
+		assert(evm_ops[op].opcode == op);
+
+		// print the address
+		printf("%.8x:   ", i);
+
+		// print the actual memory in hex
+		printf("%.8x ", op);
+		if (evm_ops[op].nargs > 0) 
+			printf("%.8x ", mem[i+1].u);
+		else 
+			printf("         ");
+
+		if (evm_ops[op].nargs == 2) 
+			printf("%.8x   ", mem[i+2].u);
+		else 
+			printf("           ");
+
+		// print the disassembly 
+		printf("%s", evm_ops[op].str);
+		for(int k = strlen(evm_ops[op].str); k < 8; k++)
+			fputc(' ', stdout);
+
+		if (evm_ops[op].nargs > 0) 
+		{
+			if (evm_ops[op].argtypes[0] == EVM_REG) {
+				printf("r%i", mem[i+1].i + 1);
+			} else if (evm_ops[op].argtypes[0] == EVM_MEM) {
+				printf("%x", mem[i+1].u);
+			} else if (evm_ops[op].argtypes[0] == EVM_IMMI) {
+				printf("%i", mem[i+1].i);
+			} else if (evm_ops[op].argtypes[0] == EVM_IMMF) {
+				printf("%f", mem[i+1].f);
+			} else assert(0);
+
+			if (evm_ops[op].nargs > 0) 
+			{
+				printf(", ");
+				if (evm_ops[op].argtypes[1] == EVM_REG) {
+					printf("r%i", mem[i+2].i + 1);
+				} else if (evm_ops[op].argtypes[1] == EVM_MEM) {
+					printf("%x", mem[i+2].u);
+				} else if (evm_ops[op].argtypes[1] == EVM_IMMI) {
+					printf("%i", mem[i+2].i);
+				} else if (evm_ops[op].argtypes[1] == EVM_IMMF) {
+					printf("%f", mem[i+2].f);
+				} else assert(0);
+			}
+		}
+
+		printf("\n");
+		i += 1 + evm_ops[op].nargs;
+	}
+
 	return 0;
 }
 
