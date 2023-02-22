@@ -23,6 +23,9 @@ fput	R	print float
 
 ld	R, M/L	load data into register
 st	M/L, R	store data into memory
+lda	R, M/L	load address of data into register
+std	R, R	dereference first argument and store second argument there
+ldd	R, R	dereference second argument and load the data stored there
 cpy	R, R	copy register to another register
 set	R, I	set a register equal to an integer immediate value
 fset	R, I	set a register equal to a float immediate value

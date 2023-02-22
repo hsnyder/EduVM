@@ -1,7 +1,7 @@
 #ifndef EVM_H
 #define EVM_H
 
-#define EVM_NUMREGS 6
+#define EVM_NUMREGS 4
 #define EVM_MAGIC (((int)'E')<<16 | ((int)'V')<<8 | ((int)'M'))
 
 typedef union {
@@ -12,8 +12,10 @@ typedef union {
 
 typedef struct {
 	int ip;
-	int sp;
-	evm_word r[EVM_NUMREGS];
+	union{
+		int sp;
+		evm_word r[EVM_NUMREGS+1]; // first reg is stack pointer
+	};
 } evm_regs;
 
 typedef struct {
@@ -29,10 +31,10 @@ typedef evm_regs (*evm_syscall_callback) (evm_regs, evm_mem *);
 typedef struct {
 	const char *errmsg;
 	evm_regs r;
+	int stop;
 } evm_status;
 
-evm_status evm_run (int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall);
-
+evm_status evm_run (int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall, evm_regs *initial_state, int single_step);
 
 typedef enum {
 	OP_STOP   = 0x00,
@@ -68,8 +70,11 @@ typedef enum {
 	OP_PUT    = 0x1e,
 	OP_FPUT   = 0x1f,
 	OP_LNOT   = 0x20,
+	OP_LDA    = 0x21,
+	OP_LDD    = 0x22,
+	OP_STD    = 0x23,
 
-	OP_INVAL  = 0x21,
+	OP_INVAL  = 0x24,
 } evm_op;
 
 typedef enum {
@@ -120,6 +125,9 @@ const evm_op_t evm_ops[] = {
 	[OP_PUT]     = {OP_PUT,  "put",  1, {EVM_REG}},
 	[OP_FPUT]    = {OP_FPUT, "fput", 1, {EVM_REG}},
 	[OP_LNOT]    = {OP_LNOT, "lnot", 1, {EVM_REG}},
+	[OP_LDA]     = {OP_LDA,  "lda",  2, {EVM_REG, EVM_MEM}},
+	[OP_LDD]     = {OP_LDD,  "ldd",  2, {EVM_REG, EVM_REG}},
+	[OP_STD]     = {OP_STD,  "std",  2, {EVM_REG, EVM_REG}},
 };
 
 
@@ -149,7 +157,7 @@ const char * validate_evm_mem(int mem_bufsz, evm_mem *memory)
 	return 0;
 }
 
-evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
+evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall, evm_regs *initial_state, int single_step)
 {
 	const char *val_err = validate_evm_mem(mem_bufsz, memory);  
 	if(val_err) return (evm_status){.errmsg = val_err};
@@ -159,20 +167,22 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
 	int start_code = end_data;
 	int end_code   = start_code + memory->len_code;
 
-	evm_regs r = {.ip = start_code, .sp = end_data-1};
 	evm_word *mem = memory->mem;
+
+	evm_regs r = {.ip = start_code, .sp = end_data-1};
+	if (initial_state) r = *initial_state;
 
 	#ifdef EVM_UNSAFE
 	#define CHKREG(x) 
 	#define CHKMEM(x) 
 	#define CHKCOD(x) 
 	#else
-	#define CHKREG(x) if(x < 0 || x >= EVM_NUMREGS) return (evm_status){.errmsg="encountered invalid register", .r=r};
+	#define CHKREG(x) if(x < 0 || x > EVM_NUMREGS) return (evm_status){.errmsg="encountered invalid register", .r=r};
 	#define CHKMEM(x) if(x < start_data || x >= end_data) return (evm_status){.errmsg="encountered invalid memory address", .r=r};
 	#define CHKCOD(x) if(x < start_code || x >= end_code) return (evm_status){.errmsg="encountered invalid code address", .r=r};
 	#endif
 
-	while (1) {
+	do {
 		#ifndef EVM_UNSAFE
 		if (r.ip < start_code || r.ip >= end_code) 
 			return (evm_status) {
@@ -196,7 +206,7 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
 
 		switch (op) {
 		case OP_STOP:
-			return (evm_status) {.r=r};
+			return (evm_status) {.r=r, .stop=1};
 		case OP_NOP: 
 			break;
 		case OP_SYSCALL:
@@ -219,6 +229,10 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
 		case OP_SET:
 			CHKREG(arg1);
 			r.r[arg1].i = arg2;
+			break;
+		case OP_FSET:
+			CHKREG(arg1);
+			r.r[arg1].f = arg2f;
 			break;
 		case OP_CPY:
 			CHKREG(arg1);
@@ -337,9 +351,8 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
 			}
 			break;
 		case OP_J:
-			CHKREG(arg1);
-			CHKCOD(arg2);
-			r.ip = arg2;
+			CHKCOD(arg1);
+			r.ip = arg1;
 			continue;
 		case OP_CVTFI:
 			CHKREG(arg1);
@@ -357,6 +370,23 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
 			CHKREG(arg1);
 			printf("%f\n", r.r[arg1].f);
 			break;
+		case OP_LDA:
+			CHKREG(arg1);
+			CHKMEM(arg2);
+			r.r[arg1].i = arg2;
+			break;
+		case OP_LDD:
+			CHKREG(arg1);
+			CHKREG(arg2);
+			CHKMEM(r.r[arg2].i);
+			r.r[arg1].i = mem[r.r[arg2].i].i;
+			break;
+		case OP_STD:
+			CHKREG(arg1);
+			CHKREG(arg2);
+			CHKMEM(r.r[arg1].i);
+			mem[r.r[arg1].i].i = r.r[arg2].i;
+			break;
 		default: 
 			return (evm_status) {
 				.errmsg = "encountered unrecognized instruction",
@@ -365,12 +395,10 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall)
 		}
 
 		r.ip += 1 + evm_ops[op].nargs;
-	}
 
-	return (evm_status) {
-		.errmsg = "evm internal error (bug): this code path should never be hit",
-		.r = r,
-	};
+	} while (!single_step);
+
+	return (evm_status) {.r=r};
 }
 
 #endif

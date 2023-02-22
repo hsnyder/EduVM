@@ -1,0 +1,9 @@
+intvar: -0x1234
+floatvar: 1.3e-6
+
+start
+ld	r1, intvar
+set	r2, 1
+add	r1, r2
+put	r1
+stop

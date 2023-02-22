@@ -45,8 +45,29 @@ typedef struct {
 	int nlabels;
 } parse_ctx;
 
+void terminal_state(int newstate)
+{
+	static int st = 0;
+	if (st != newstate) {
+		st = newstate;
+		if(st) {
+			// clear screen
+			printf("\x1b[2J");
+			// turn on TUI mode
+			printf("\x1b[?1049h");
+		} else {
+			// clear screen
+			printf("\x1b[2J");
+			// turn off TUI mode
+			printf("\x1b[?1049l");
+		}
+	}
+}
+
 static _Noreturn void die (parse_ctx *p, char *fmt, ...)
 {
+	terminal_state(0);
+
 	va_list va;
 	va_start(va, fmt);
 	vfprintf(stderr, fmt, va);
@@ -416,17 +437,19 @@ int data(parse_ctx *p, evm_word *mem)
 
 int parsereg(token t)
 {
-	if (t.type != TOK_ID) return 0;
-	if (t.s_len != 2) return 0;
+	if (t.type != TOK_ID) return -1;
+	if (t.s_len != 2) return -1;
+	if(!memcmp(t.s, "sp", 2)) return 0;
 	char n[2] = {t.s[1], 0};
 	int r = atoi(n);
-	if (r < 0) return 0;
-	if (r > EVM_NUMREGS) return 0;
+	if (r < 1) return -1;
+	if (r > EVM_NUMREGS) return -1;
+	return r;
 }
 
 void checkarg(parse_ctx *p, token t, evm_op_t op, int argno)
 {
-	if (op.argtypes[argno] == EVM_REG && t.type == TOK_ID && parsereg(t)) return;
+	if (op.argtypes[argno] == EVM_REG && t.type == TOK_ID && (parsereg(t) >= 0)) return;
 	if (op.argtypes[argno] == EVM_MEM && t.type == TOK_ID) return;
 	if (op.argtypes[argno] == EVM_MEM && t.type == TOK_INTLIT) return;
 	if (op.argtypes[argno] == EVM_IMMI && t.type == TOK_INTLIT) return;
@@ -444,8 +467,8 @@ int emit_argument(parse_ctx *p, evm_op_t op, token t, int a)
 {
 	if (op.argtypes[a] == EVM_REG) {
 		int r = parsereg(t);
-		if (!r) die(p, "Invalid register (argument %i)", a+1);
-		return r-1;
+		if (r<0) die(p, "Invalid register (argument %i)", a+1);
+		return r;
 	} else 
 	if (op.argtypes[a] == EVM_MEM) {
 		if (t.type == TOK_ID) {
@@ -648,7 +671,7 @@ const char *assemble(int bufsz, char *buf)
 	*/
 }
 
-const char *disassemble(int bufsz, int *buf)
+const char *disassemble(int bufsz, int *buf, int ip)
 {
 	evm_mem *img = buf;	
 	const char *errmsg = validate_evm_mem(bufsz, img);
@@ -657,18 +680,22 @@ const char *disassemble(int bufsz, int *buf)
 	evm_word *mem = img->mem;
 
 	printf("--- DATA SECTION ---------------------------------\n");
+	printf("address     hex        decimal int      float   ascii\n");
 	for (int i = 0; i < img->len_data; i++)
 	{
-		// print the address
-		printf("%.8x:   ", i);
-
-		// print the contents of memory
-		printf("%.8x\n", mem[i].u);
+		char ascii[5] = {0};
+		memcpy(ascii, &mem[i], 4);
+		for(int i = 0; i < 4; i++) 
+			ascii[i] = (ascii[i] > 31 && ascii[i] < 127) ? ascii[i] : '.';
+		printf("%.8x:   %.8x   %11i   %8f   %s\n", i, mem[i].u, mem[i].i, mem[i].f, ascii);
 	}
 	printf("--- CODE SECTION ---------------------------------\n");
 	int i = img->len_data;
+
 	while (i < img->len_code+img->len_data)
 	{
+		char indicator = i == ip ? '>' : ' ';
+
 		int op = mem[i].i;
 		if (op < OP_STOP || op >= OP_INVAL) 
 			die(0, "Illegal instruction 0x%0.8x", op);
@@ -685,9 +712,9 @@ const char *disassemble(int bufsz, int *buf)
 			printf("         ");
 
 		if (evm_ops[op].nargs == 2) 
-			printf("%.8x   ", mem[i+2].u);
+			printf("%.8x %c%c", mem[i+2].u, indicator, indicator);
 		else 
-			printf("           ");
+			printf("         %c%c", indicator, indicator);
 
 		// print the disassembly 
 		printf("%s", evm_ops[op].str);
@@ -697,7 +724,10 @@ const char *disassemble(int bufsz, int *buf)
 		if (evm_ops[op].nargs > 0) 
 		{
 			if (evm_ops[op].argtypes[0] == EVM_REG) {
-				printf("r%i", mem[i+1].i + 1);
+				if(mem[i+1].i == 0)
+					printf("sp");
+				else
+					printf("r%i", mem[i+1].i);
 			} else if (evm_ops[op].argtypes[0] == EVM_MEM) {
 				printf("%x", mem[i+1].u);
 			} else if (evm_ops[op].argtypes[0] == EVM_IMMI) {
@@ -706,11 +736,14 @@ const char *disassemble(int bufsz, int *buf)
 				printf("%f", mem[i+1].f);
 			} else assert(0);
 
-			if (evm_ops[op].nargs > 0) 
+			if (evm_ops[op].nargs > 1) 
 			{
 				printf(", ");
 				if (evm_ops[op].argtypes[1] == EVM_REG) {
-					printf("r%i", mem[i+2].i + 1);
+					if(mem[i+2].i == 0)
+						printf("sp");
+					else
+						printf("r%i", mem[i+2].i);
 				} else if (evm_ops[op].argtypes[1] == EVM_MEM) {
 					printf("%x", mem[i+2].u);
 				} else if (evm_ops[op].argtypes[1] == EVM_IMMI) {
@@ -727,6 +760,46 @@ const char *disassemble(int bufsz, int *buf)
 
 	return 0;
 }
+
+const char* interactive(int bufsz, int *buf)
+{
+	evm_mem *memory = (void*)buf;
+	const char *err = validate_evm_mem(bufsz, memory);  
+	if(err) return err;
+
+	terminal_state(1);
+
+	char garbage[500] = {0};
+
+	int start_data = 0;
+	int end_data   = memory->len_data;
+	int start_code = end_data;
+	int end_code   = start_code + memory->len_code;
+
+	evm_regs state = {.ip = start_code, .sp = end_data-1};
+	evm_status stat = {0};
+
+	while(!stat.errmsg) {
+		// clear screen
+		printf("\x1b[2J");
+		err = disassemble(bufsz, buf, state.ip);	
+
+		printf("--- CPU STATE ------------------------------------\n");
+		printf("\tip  %.8x\n", state.ip);
+		printf("\tsp  %.8x\n", state.sp);
+		for(int i = 1; i < ssizeof(state.r)/ssizeof(state.r[0]); i++) 
+			printf("\tr%i  %.8x (%i) (%f)\n", i, state.r[i].u, state.r[i].i, state.r[i].f);
+
+		if(stat.stop || err) break;
+
+		fgets(garbage, ssizeof(garbage), stdin);
+		stat = evm_run(bufsz, memory, 0, &state, 1);
+		state = stat.r;
+	}
+	terminal_state(0);
+	return err;
+}
+
 
 
 const char* ingest_file(int bufsz, int *buf, char *fname)
@@ -750,7 +823,7 @@ const char* ingest_file(int bufsz, int *buf, char *fname)
 
 int main (int argc, char **argv)
 {
-	enum { RUN, ASSEMBLE, DISASSEMBLE } mode = RUN;
+	enum { RUN, ASSEMBLE, DISASSEMBLE, INTERACTIVE } mode = RUN;
 
 	argv++;
 	for(; *argv; argv++) {
@@ -758,6 +831,8 @@ int main (int argc, char **argv)
 			mode = ASSEMBLE;
 		} else if (!strcmp(*argv, "-d")) {
 			mode = DISASSEMBLE;
+		} else if (!strcmp(*argv, "-i")) {
+			mode = INTERACTIVE;
 		} else {
 			static int buf[1<<20] = {0};
 			const char *err = ingest_file((int)sizeof(buf), buf, *argv);
@@ -767,20 +842,23 @@ int main (int argc, char **argv)
 				err = assemble((int)sizeof(buf), (char*)buf);
 				break;
 			case DISASSEMBLE:
-				err = disassemble((int)sizeof(buf), buf);
+				err = disassemble((int)sizeof(buf), buf, 0);
 				break;
 			case RUN: {
-					evm_status s = evm_run((int)sizeof(buf), buf, 0);
+					evm_status s = evm_run((int)sizeof(buf), buf, 0, 0, 0);
 					if (s.errmsg) {
 						fprintf(stderr, "%s\n", s.errmsg);
 						fprintf(stderr, "\tip  %i\n", s.r.ip);
 						fprintf(stderr, "\tsp  %i\n", s.r.sp);
-						for(int i = 0; i < sizeof(s.r.r)/sizeof(s.r.r[0]); i++) 
+						for(int i = 1; i < ssizeof(s.r.r)/ssizeof(s.r.r[0]); i++) 
 							fprintf(stderr, "\tr%i  %i (%x) (%f)\n", i, s.r.r[i].i, s.r.r[i].u, s.r.r[i].f);
 						exit(EXIT_FAILURE);
 					}
 					exit(EXIT_SUCCESS);
 				}
+			case INTERACTIVE:
+				err = interactive((int)sizeof(buf), buf);
+				break;
 			default:
 				assert(0);
 				break;
