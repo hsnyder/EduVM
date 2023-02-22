@@ -1,4 +1,4 @@
-EVM: educational virtual machine
+EduVM: Educational Virtual Machine
 
 R must be a register name
 M/L must be a hardcoded memory address or a label
