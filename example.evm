@@ -1,9 +1,18 @@
-intvar: -0x1234
-floatvar: 1.3e-6
+# this is our "data" section
+startvar: -0x1234
+currentvar: 0
 
+# this is our "code" section
 start
-ld	r1, intvar
-set	r2, 1
-add	r1, r2
-put	r1
-stop
+	set	r3, 5  # this is how many loop iterations we have left
+	ld	r1, startvar
+	set	r2, 1 
+
+loop:	add	r1, r2  # add 1 to the value in r1
+	st	currentvar, r1
+	put	r1
+
+	sub 	r3, r2  # reduce remaining loops by 1
+	jp	r3, loop
+
+	stop
