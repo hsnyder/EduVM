@@ -127,7 +127,7 @@ syscall		system call
 Syscall convention
 ------------------
 
-NOTE: SYSCALLS NOT IMPLEMENTED IN THE EXAMPLE
+NOTE: main.c doesn't implement any syscalls.
 
 r1 holds syscall code, and holds return code on exit from syscall
 r2 onwards hold the arguments
