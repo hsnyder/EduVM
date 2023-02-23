@@ -1,0 +1,12 @@
+var1:	100
+var2:	-66
+
+start
+	ld	r1, var1
+	ld	r2, var2
+	add	r1, r2
+	st	var1, r1
+	put	r1
+	stop
+
+
