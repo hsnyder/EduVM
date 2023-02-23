@@ -23,7 +23,7 @@ Interactive: `./evm -i bytecode.bin`
 
 
 Machine registers and address format
------------------
+------------------------------------
 
 The machine has an instruction pointer (`ip`), a stack pointer (`sp`)
 and four 32 bit general purpose registers (`r1`, `r2`, ...). The stack pointer
