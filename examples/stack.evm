@@ -1,0 +1,21 @@
+stack: zeros 10
+
+start
+	set	r1, 10
+	set 	r2, -15
+	set	r3, 16
+
+	push	r3
+	push	r2
+	push	r1
+
+	set	r1, 0
+	set	r2, 0
+	set	r3, 0
+
+	pop	r1
+	pop	r2
+	pop	r3
+
+	stop
+	

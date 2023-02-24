@@ -250,7 +250,7 @@ evm_status evm_run(int mem_bufsz, evm_mem *memory, evm_syscall_callback syscall,
 			break;
 		case OP_POP:
 			CHKREG(arg1);
-			r.r[arg1].i = mem[r.sp++ ].i;
+			r.r[arg1].i = mem[++(r.sp)].i;
 			break;
 		case OP_ADD:
 			CHKREG(arg1);
