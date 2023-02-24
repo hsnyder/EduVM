@@ -1,0 +1,6 @@
+stack: zeros 1
+start
+	set	r1, 15
+	cvtif	r1
+	fput	r1
+	stop
