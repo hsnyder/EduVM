@@ -1,5 +1,5 @@
-strvar1: "hello there my name is harris"
-strvar2: 'hello there my name is harris'
+strvar1: "hello there"
+strvar2: 'hello there'
 intvar: -0x1234
 floatvar: 1.3e-6
 stack: zeros 10
