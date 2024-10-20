@@ -676,9 +676,9 @@ const char *assemble(int bufsz, char *buf)
 	*/
 }
 
-const char *disassemble(int bufsz, int *buf, int ip)
+const char *disassemble(int bufsz, unsigned char *buf, int ip)
 {
-	evm_mem *img = buf;	
+	evm_mem *img = (evm_mem*)buf;	
 	const char *errmsg = validate_evm_mem(bufsz, img);
 	if (errmsg) return errmsg;
 
@@ -766,7 +766,7 @@ const char *disassemble(int bufsz, int *buf, int ip)
 	return 0;
 }
 
-const char* interactive(int bufsz, int *buf)
+const char* interactive(int bufsz, unsigned char *buf)
 {
 	evm_mem *memory = (void*)buf;
 	const char *err = validate_evm_mem(bufsz, memory);  
@@ -807,7 +807,7 @@ const char* interactive(int bufsz, int *buf)
 
 
 
-const char* ingest_file(int bufsz, int *buf, char *fname)
+const char* ingest_file(int bufsz, unsigned char *buf, char *fname)
 {
 	FILE *f = fopen(fname, "rb");
 	if(!f) return "couldn't open specified file";
@@ -839,7 +839,7 @@ int main (int argc, char **argv)
 		} else if (!strcmp(*argv, "-i")) {
 			mode = INTERACTIVE;
 		} else {
-			static int buf[1<<20] = {0};
+			static unsigned char buf[4*1<<20] = {0};
 			const char *err = ingest_file((int)sizeof(buf), buf, *argv);
 
 			if(!err) switch(mode) {
@@ -850,7 +850,7 @@ int main (int argc, char **argv)
 				err = disassemble((int)sizeof(buf), buf, 0);
 				break;
 			case RUN: {
-					evm_status s = evm_run((int)sizeof(buf), buf, 0, 0, 0);
+					evm_status s = evm_run((int)sizeof(buf), (evm_mem*)buf, 0, 0, 0);
 					if (s.errmsg) {
 						fprintf(stderr, "%s\n", s.errmsg);
 						fprintf(stderr, "\tip  %i\n", s.r.ip);
